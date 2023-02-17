@@ -1,0 +1,24 @@
+# Go to https://github.com/F5Networks/f5-telemetry-streaming/releases and get the full download URL
+
+bash
+cd /var/config/rest/downloads
+
+# Dynamic Variables
+DownloadURL=https://github.com/F5Networks/f5-telemetry-streaming/releases/download/v1.32.0/f5-telemetry-1.32.0-2.noarch.rpm
+
+# Static Variables
+Version=new
+FN=f5-telemetry-$Version.noarch.rpm
+CREDS=admin
+
+# Preemptive remediation for Bug ID 929213. Reference K04548517
+tmsh modify sys db iapplxrpm.timeout value 300
+tmsh restart sys service restjavad
+sleep 60s
+
+#Download RPM File
+curl -LJ -o /var/config/rest/downloads/$FN $DownloadURL
+
+# Install RPM - when using a variable inside single quotes, you have to end the single quotes before the variable and restart them after the variable
+DATA='{"operation":"INSTALL","packageFilePath":"/var/config/rest/downloads/'$FN'"}'
+curl -kvu $CREDS -X POST http://localhost:8100/mgmt/shared/iapp/package-management-tasks -d $DATA
