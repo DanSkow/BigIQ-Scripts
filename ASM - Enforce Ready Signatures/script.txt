@@ -1,0 +1,32 @@
+# Determines HA Status, creates variable, then loops through it on Active devices 
+
+bash
+cd /var/tmp/
+
+# Static Variables
+CREDS=admin
+
+# Writes HA Status to a file
+tmsh show /cm failover-status | grep Status > /var/tmp/ha-status.txt
+chmod 755 /var/tmp/ha-status.txt
+
+# Exits script if the HA Status file contains the string STANDBY
+if grep -q STANDBY /var/tmp/ha-status.txt; then
+  exit
+fi
+
+# Creates variable with list of policy hashes, then prints variable contents to txt file
+FILENAME=$(curl -kvu $CREDS http://localhost/mgmt/tm/asm/policies | jq -r '.items[] | .id')
+printf "$FILENAME\n" > /var/tmp/policy-hashes.txt
+
+FILENAME="policy-hashes.txt"
+LINES=$(cat $FILENAME)
+
+# ASM - Enforces Ready Entities and Applies Policies - All Policies
+for LINE in $LINES
+do
+  curl -kvu $CREDS -X PATCH "https://localhost/mgmt/tm/asm/policies/$LINE/signatures?\$select=&\$filter=hasSuggestions+eq+false+AND+wasUpdatedWithinEnforcementReadinessPeriod+eq+false+and+performStaging+eq+true" -u $CREDS -k -v -H "Content-Type: application/json" -d '{"performStaging":false}' | jq .
+  LINK=\"https://localhost/mgmt/tm/asm/policies/$LINE\"
+  curl -kvu $CREDS POST https://localhost/mgmt/tm/asm/tasks/apply-policy -k -v -H "Content-Type: application/json" -d "{\"policyReference\": {\"link\": $LINK }}" | jq .
+  sleep 10s
+done
