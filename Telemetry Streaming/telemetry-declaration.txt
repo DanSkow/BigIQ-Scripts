@@ -1,0 +1,22 @@
+# Posts Telemetry Streaming declaration
+# IF THIS REQUEST FAILS WITH A 404 ERROR, RE-RUN "Deploy/Update Telemetry Streaming RPM" SCRIPT TO GET A FRESH RPM INSTALL. Reference K04548517
+
+bash
+
+# Writes HA Status to a file
+tmsh show /cm failover-status | grep Status > /var/tmp/ha-status.txt
+chmod 755 /var/tmp/ha-status.txt
+
+# Exits script if the HA Status file contains the string STANDBY
+if grep -q STANDBY /var/tmp/ha-status.txt; then
+  exit
+fi
+
+CREDS=admin
+SplunkCypherText=AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA
+SplunkHost=10.10.10.10
+
+# Standard Telemetry Declaration for Splunk
+DATA1='{"class":"Telemetry","My_System":{"class":"Telemetry_System","host":"localhost","systemPoller":{"interval":300}},"My_Listener":{"class":"Telemetry_Listener","port":6514},"My_Consumer":{"class":"Telemetry_Consumer","type":"Splunk","host":"'$SplunkHost'","protocol":"https","port":8088,"allowSelfSignedCert":true,"passphrase":{"cipherText":"'$SplunkCypherText'"}}}'
+
+curl -kvu $CREDS POST https://localhost/mgmt/shared/telemetry/declare -H "Content-Type: application/json" -d $DATA1
